@@ -1,0 +1,29 @@
+name: ItemCD
+version: 1.5.2
+main: cc.keran.itemcd.ItemCD
+api-version: "1.16"
+author: Keran Technology Co., Ltd.
+description: Item Cooldown - 按规则检测玩家物品并施加原版物品冷却
+website: https://keran.cc
+
+softdepend:
+  - NBTAPI
+  - PlaceholderAPI
+  - ProtocolLib
+  - CrackShot
+
+commands:
+  itemcd:
+    description: ItemCD 管理命令
+    usage: /itemcd <reload|info|nbt|probe>
+    permission: itemcd.admin
+    aliases:
+      - icd
+
+permissions:
+  itemcd.admin:
+    description: 允许使用 ItemCD 管理命令
+    default: op
+  itemcd.bypass:
+    description: 免疫所有 ItemCD 冷却检测
+    default: false
