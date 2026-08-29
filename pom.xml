@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>cc.keran</groupId>
+    <artifactId>ItemCD</artifactId>
+    <version>1.5.2</version>
+    <packaging>jar</packaging>
+
+    <name>ItemCD</name>
+    <description>Item Cooldown - 按规则检测物品并施加原版冷却</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>papermc</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+        <repository>
+            <id>codemc</id>
+            <url>https://repo.codemc.io/repository/maven-public/</url>
+        </repository>
+        <repository>
+            <id>jitpack</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!-- Paper 1.16.5 API (build 371, class version 52 = Java 8) -->
+        <dependency>
+            <groupId>com.destroystokyo.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>1.16.5-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- NBT-API: 多层嵌套 NBT 检测 (软依赖, 服上 NBTAPI 插件提供) -->
+        <dependency>
+            <groupId>de.tr7zw</groupId>
+            <artifactId>item-nbt-api</artifactId>
+            <version>2.9.2</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- PlaceholderAPI: 冷却时间变量解析 (软依赖) -->
+        <dependency>
+            <groupId>com.github.PlaceholderAPI</groupId>
+            <artifactId>PlaceholderAPI</artifactId>
+            <version>2.10.9</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ProtocolLib: 协议层拦截 (软依赖, 服上 ProtocolLib 插件提供)
+             在客户端操作包被解析成 PlayerInteractEvent 之前丢弃。
+             注意: ProtocolLib 不在任何公开 Maven 仓库, 需手动 install 到本地:
+               mvn install:install-file -Dfile=ProtocolLib-5.2.0.jar \
+                 -DgroupId=com.comphenix.protocol -DartifactId=ProtocolLib -Dversion=5.2.0 \
+                 -Dpackaging=jar -DgeneratePom=true -->
+        <dependency>
+            <groupId>com.comphenix.protocol</groupId>
+            <artifactId>ProtocolLib</artifactId>
+            <version>5.2.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- CrackShot: 官方 WeaponPrepareShootEvent 事件拦截 (软依赖)
+             这是阻止 CrackShot / CrackShotPlus 开火的最终方案:
+             CS 每次开火前都会派发该事件并检查 isCancelled(), 取消即可
+             拦截全部射击路径(含全自动连发)。
+             注意: CrackShot 不在任何公开 Maven 仓库, 需手动 install 到本地:
+               mvn install:install-file -Dfile=CrackShot.jar \
+                 -DgroupId=com.shampaggon -DartifactId=CrackShot -Dversion=0.98.13 \
+                 -Dpackaging=jar -DgeneratePom=true -->
+        <dependency>
+            <groupId>com.shampaggon</groupId>
+            <artifactId>CrackShot</artifactId>
+            <version>0.98.13</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>ItemCD-${project.version}</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>8</source>
+                    <target>8</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>
