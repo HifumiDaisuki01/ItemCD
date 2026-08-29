@@ -1,0 +1,223 @@
+# ┌──────────────────────────────────────────────────────────────────┐
+# │  ItemCD v1.5.2                                                   │
+# │  Item Cooldown - 按规则检测玩家物品并施加原版物品冷却             │
+# │  Copyright (c) Keran Technology Co., Ltd. All rights reserved.    │
+# └──────────────────────────────────────────────────────────────────┘
+#
+#  命令:   /itemcd reload   重载本配置
+#          /itemcd info     查看当前加载状态
+#          /itemcd nbt      打印手持物品的完整 NBT（配置 NBT 检测时用）
+#          /itemcd probe    诊断手持物品的冷却链路（排查「枪还能开火」用）
+#  权限:   itemcd.admin     管理命令 (默认 OP)
+#          itemcd.bypass    免疫所有冷却检测
+#
+# ── 核心概念 ──────────────────────────────────────────────────────
+#  groups  = 检测集合，可建多个；每个集合包含若干 checks(检测)
+#  checks  = 单条检测，按顺序匹配；命中即施加冷却并停止后续检测
+#
+# ── 冷却时禁止瞄准（可选，按检测单独设置）──────────────────────────
+#  block-scope: true   冷却时禁止该物品的 CrackShot / CrackShotPlus 瞄准（开镜）
+#  block-scope: false  或留空 = 冷却时不禁止瞄准，仅禁止射击
+#
+# ── 三类检测种类 ──────────────────────────────────────────────────
+#  种类1  material        原版材质，不匹配则跳过该检测
+#  种类2  display-name    物品名称，fuzzy 控制模糊/精确
+#  种类3  nbt             NBT 结构，支持多层嵌套，须完全包含于物品
+#
+#  规则：从种类1开始；未设置(留空/删除)的种类自动跳过；
+#        任一种类不匹配 → 跳过该检测，继续尝试下一条检测。
+#
+# ── 七种触发时机 ──────────────────────────────────────────────────
+#  swap       主副手切换（按 F）
+#  switch     快捷栏切换物品 (滚轮 / 数字键)
+#  inventory  背包内物品与快捷栏物品互换 (点击/拖放/Shift+点击/数字键交换)
+#  left       左键 —— 点一下即检测，不论是否命中、是否被其他插件取消
+#  right      右键 —— 点一下即检测，不论是否触发效果
+#  attack     左键且实际造成伤害（命中实体才触发）
+#  consume    消耗物品（吃食物 / 喝药水）
+#
+#  冷却单位 = tick (20 tick = 1 秒)
+#  填 0 或留空 = 该触发不检测
+#  数值支持 PlaceholderAPI 变量，例如: "%player_level%" / "%vault_eco_balance%"
+
+debug: false
+
+# ─────────────────────────────────────────────────────────────────
+#  冷却中禁止使用物品（关键开关）
+# ─────────────────────────────────────────────────────────────────
+#  原版物品冷却本质上只是一层「视觉遮罩」，CrackShot / CrackShotPlus
+#  这类第三方武器并不检查它，所以枪械在冷却中依然能开火。
+#
+#  开启本项后，插件会在交互事件中主动取消冷却中物品的使用，
+#  覆盖：左键、右键、右键实体、攻击实体、消耗物品。
+#
+#  针对 CrackShot / CrackShotPlus 的额外处理（关键）：
+#  这两个插件不检查事件的 cancelled 状态，单纯取消拦不住开火。
+#  因此插件会同时把交互事件携带的物品替换为空气，
+#  使武器在它们的视角中「不存在」，从源头阻止开火。
+block-interaction-during-cooldown: true
+
+# 冷却中使用物品时给玩家的提示（留空 = 不提示）
+# 可用变量: {ticks} 剩余冷却 tick / {seconds} 剩余秒数
+# 提示方式: actionbar(默认，不刷屏) / chat / none
+cooldown-message: "&c物品冷却中 &8(&b{seconds}s&8)"
+cooldown-message-type: actionbar
+
+# 拦截范围:
+#   all      = 取消全部左右键交互（含开门 / 放方块 / 挖方块）—— 最严格
+#   air-only = 仅取消针对空气的交互，保留对方块的操作（仍可正常开门、挖方块）
+# 若发现手持冷却中的武器时连门都开不了，改成 air-only
+block-interaction-mode: all
+
+# ─────────────────────────────────────────────────────────────────
+#  协议层拦截（需要服务器安装 ProtocolLib）
+# ─────────────────────────────────────────────────────────────────
+#  这是唯一能真正阻止 CrackShot / CrackShotPlus 开火的机制。
+#
+#  为什么光靠 Bukkit 事件拦不住 CrackShot:
+#    1. CrackShot 不检查事件的 cancelled 状态 -> setCancelled 无效
+#    2. CrackShot 从 player.getInventory().getItemInMainHand() 读取武器
+#       -> 改写事件携带的 item 字段同样无效
+#
+#  协议层的做法: 客户端的左右键操作会先变成数据包发给服务端，
+#  服务端解析后才派发出 PlayerInteractEvent。本机制在这些包被解析
+#  之前就丢弃它们。
+#
+#  ⚠️ v1.5.0 实测结论:
+#  协议层【拦不住】CrackShot / CrackShotPlus！
+#    - CS 通过 player.getItemInHand() 直接读背包（反编译确认），
+#      不依赖事件携带的物品；
+#    - 全自动武器首次点击后由 CS 内部定时器持续开火，
+#      丢包只能拦下第一次点击。
+#  因此协议层仅作为对其他武器插件的兜底。
+#  CrackShot 的拦截请依赖插件的「CrackShot 官方事件拦截」
+#  （监听 WeaponPrepareShootEvent，CS 每次开火前都会派发并检查取消，
+#   连全自动连发都能拦下）。
+#
+#  未安装 ProtocolLib 时会自动降级为事件层拦截（对原版物品仍有效）。
+packet-block:
+
+  enabled: true
+
+  # 需要拦截的包类型（客户端 -> 服务端）
+  #   USE_ITEM       右键使用物品   <- CrackShot 右键开火走这里
+  #   BLOCK_PLACE    右键放置       <- 部分武器的右键走这里
+  #   BLOCK_DIG      左键           <- CrackShot 左键开火 / 近战
+  #   USE_ENTITY     左键攻击实体 / 右键交互实体
+  #   ARM_ANIMATION  挥手动画（一般不拦，拦截会导致动画卡顿）
+  #   ENTITY_ACTION  潜行 / 疾跑 / 跳跃等实体动作
+  #   HELD_ITEM_SLOT 切换快捷栏（不建议拦，会导致玩家无法切换物品栏）
+  types:
+    - USE_ITEM
+    - BLOCK_PLACE
+    - BLOCK_DIG
+    - USE_ENTITY
+
+groups:
+
+  # ══════════════ 示例集合 A：CrackShot 枪械 ══════════════
+  # 演示三类检测齐全 + 跨集合豁免
+  crackshot:
+
+    # 跨集合豁免：手持下列集合的物品切换到本集合物品时，跳过检测
+    # （对本集合内所有检测生效；oldGroup 为本集合自身时亦可填自身 id）
+    ignore-from:
+      - melee
+
+    checks:
+        # ── 检测 1：狙击枪（按 NBT 精确识别具体武器）──
+      - id: "sniper-rifle"
+        material: DIAMOND_SWORD
+        display-name: "&c狙击步枪"
+        fuzzy: true
+        nbt:
+          PublicBukkitValues:
+            "crackshotplus:wn": "AWM"
+        # 冷却时禁止该武器开镜瞄准（true 禁止 / false 或留空 = 不禁止，仅禁射击）
+        block-scope: true
+        cooldown:
+          swap: 60
+          switch: 40
+          inventory: 60
+          left: 20
+          right: 20
+          attack: 30
+
+        # ── 检测 2：任意突击步枪（模糊名称 + 材质）──
+      - id: "assault-rifle"
+        material: IRON_SWORD
+        display-name: "&6突击"
+        fuzzy: true
+        cooldown:
+          swap: 20
+          switch: 20
+          inventory: 20
+          left: 0
+          right: 10
+          attack: 15
+
+        # ── 检测 3：仅按 NBT 判定，不限材质与名称 ──
+      - id: "any-cs-weapon"
+        nbt:
+          PublicBukkitValues:
+            "crackshotplus:wn": "*"
+        cooldown:
+          swap: 15
+          switch: 15
+          attack: 10
+
+  # ══════════════ 示例集合 B：近战武器 ══════════════
+  # 从 crackshot 切到本集合时不检测，反之则检测
+  melee:
+    ignore-from:
+      - crackshot
+    checks:
+      - id: "diamond-sword"
+        material: DIAMOND_SWORD
+        display-name: "&b霜之哀伤"
+        fuzzy: false
+        cooldown:
+          swap: 30
+          switch: 30
+          inventory: 30
+          left: 5
+          right: 5
+          attack: 10
+
+      - id: "any-sword"
+        material: NETHERITE_SWORD
+        cooldown:
+          swap: 40
+          switch: 40
+          inventory: 40
+          attack: 20
+
+  # ══════════════ 示例集合 C：消耗品（含 PAPI 变量冷却）══════════════
+  consumables:
+    ignore-from: []
+    checks:
+      - id: "ender-pearl"
+        material: ENDER_PEARL
+        cooldown:
+          swap: 0
+          switch: 0
+          inventory: 0
+          right: "%player_level%"
+
+      - id: "golden-apple"
+        material: GOLDEN_APPLE
+        cooldown:
+          right: 60
+          consume: 120      # ← 吃下之后进入冷却，防止连续嗑金苹果
+
+        # ── 检测：原版食物（吃掉后冷却）──
+      - id: "cooked-beef"
+        material: COOKED_BEEF
+        cooldown:
+          consume: 40
+
+        # ── 检测：原版药水（喝掉后冷却）──
+      - id: "potion"
+        material: POTION
+        cooldown:
+          consume: 60
