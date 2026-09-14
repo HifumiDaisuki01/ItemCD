@@ -2,7 +2,12 @@
 
 > **Minecraft 1.16.5 物品冷却控制插件** — 按自定义规则检测玩家物品，命中后施加原版物品冷却。
 >
-> Copyright (c) Keran Technology Co., Ltd. All rights reserved.
+> Copyright (c) 2026 Keran Technology <keran@keran.cc> (http://tech.keran.cc) — 采用 MIT 协议开源
+
+[![Minecraft](https://img.shields.io/badge/Minecraft-%s-green.svg)](https://papermc.io)
+[![Paper](https://img.shields.io/badge/Paper-%s-blue.svg)](https://papermc.io)
+[![Java](https://img.shields.io/badge/Java-%s-orange.svg)](https://adoptium.net)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ItemCD 是一个为 Minecraft 服务器设计的**物品冷却控制工具**。你可以为任意物品定义检测规则：指定材质、名称或 NBT 结构，物品一旦符合规则并在特定时机被触发（切换、点击、攻击、消耗……），就会进入可自定义时长的冷却，冷却期间无法使用。
 
@@ -115,4 +120,6 @@ mvn clean package
 
 ## License
 
-Copyright (c) Keran Technology Co., Ltd. All rights reserved.
+Copyright (c) 2026 Keran Technology <keran@keran.cc> (http://tech.keran.cc)
+
+本项目采用 **MIT 协议**开源，允许自由使用、修改、分发（含商业用途），仅需保留本版权声明。
